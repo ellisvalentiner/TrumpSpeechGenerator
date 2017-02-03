@@ -1,0 +1,3 @@
+[submodule "orangetext"]
+	path = orangetext
+	url = https://github.com/hrbrmstr/orangetext.git

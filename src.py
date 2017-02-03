@@ -1,18 +1,20 @@
 from __future__ import print_function
 from keras.models import Sequential
-from keras.layers import Dense, Activation
+from keras.layers import Dense, Activation, Dropout
 from keras.layers import LSTM
+from keras.callbacks import ModelCheckpoint
 from keras.optimizers import RMSprop
 import numpy as np
 import random
 import sys
 import glob
 
-speeches = glob.glob("speeches/*.txt")
+speeches = glob.glob("orangetext/data/speeches/*.txt")
 text = ""
 for speech in speeches:
     for line in open(speech, 'r'):
         text += line
+text = " ".join(text.split())
 print('corpus length:', len(text))
 
 chars = sorted(list(set(text)))
@@ -21,7 +23,7 @@ char_indices = dict((c, i) for i, c in enumerate(chars))
 indices_char = dict((i, c) for i, c in enumerate(chars))
 
 # cut the text in semi-redundant sequences of maxlen characters
-maxlen = 40
+maxlen = 60
 step = 3
 sentences = []
 next_chars = []
@@ -42,13 +44,20 @@ for i, sentence in enumerate(sentences):
 # build the model: a single LSTM
 print('Build model...')
 model = Sequential()
-model.add(LSTM(128, input_shape=(maxlen, len(chars))))
+model.add(LSTM(256, input_shape=(maxlen, len(chars)), return_sequences=True))
+model.add(Dropout(0.2))
+model.add(LSTM(256))
+model.add(Dropout(0.2))
 model.add(Dense(len(chars)))
 model.add(Activation('softmax'))
 
-optimizer = RMSprop(lr=0.01)
-model.compile(loss='categorical_crossentropy', optimizer=optimizer)
+#optimizer = RMSprop(lr=0.01)
+model.compile(loss='categorical_crossentropy', optimizer='adam')
 
+# callbacks
+checkpoint = ModelCheckpoint('models/weights-{epoch:02d}-{loss:.4f}.hdf5',
+    monitor='loss', verbose=1, save_best_only=True, mode='min')
+callbacks_list = [checkpoint]
 
 def sample(preds, temperature=1.0):
     # helper function to sample an index from a probability array
@@ -64,11 +73,11 @@ for iteration in range(1, 60):
     print()
     print('-' * 50)
     print('Iteration', iteration)
-    model.fit(X, y, batch_size=128, nb_epoch=10)
+    model.fit(X, y, batch_size=64, nb_epoch=10, callbacks=callbacks_list)
 
     start_index = random.randint(0, len(text) - maxlen - 1)
 
-    for diversity in [0.2, 0.5, 1.0, 1.2]:
+    for diversity in [0.1, 0.2, 0.5, 1.0, 1.2, 2.0]:
         print()
         print('----- diversity:', diversity)
 
